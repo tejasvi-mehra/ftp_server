@@ -72,11 +72,18 @@ void nlst(char* buffer){
 
 void cwd(char* buffer){
   char* query=substrings(buffer, 4, strlen(buffer));
-  printf("in cwd, query:%s\n",query );
+  strcat(query,"/");
+  printf("cwd, query:%s\n",query );
+
   if (strncmp(substrings(query, 0, 2), "./", 2) == 1 || strstr(query, "../") != NULL) {
 		write(new_file_descriptor, "504", 3);
 	}
   else {
+int i=0;
+while(query[i] != '\0'){
+    query[i] = tolower(query[i]);
+    i++;
+  }
 		if (chdir(query) != 0) {
 			perror("error while changing dir");
    char* response1 = "550 Requested action not taken. Directory does not exist\n";
@@ -191,7 +198,7 @@ void client_parser(char* buffer){
       if (strncmp("QUIT", buffer, 4) == 0) {
         quit1(buffer);
       }
-      else if (strncmp("CWD", buffer, 3) == 0) {
+      else if ((strncmp("CWD", buffer, 3) == 0) || (strncmp("XCWD", buffer, 4) == 0)){
         printf("HERE\n");
         cwd(buffer);
       }
@@ -214,7 +221,7 @@ void client_parser(char* buffer){
       //   pasv(buffer);
       // }
       else if ((strncmp("NLST", buffer, 4) == 0) || (strncmp("PWD", buffer, 3) == 0)) {
-printf("nlst/pwd\n");
+
         nlst(buffer);
       }
 else {
