@@ -79,6 +79,11 @@ void cwd(char* buffer){
   else {
 		if (chdir(query) != 0) {
 			perror("error while changing dir");
+   char* response1 = "550 Requested action not taken. Directory does not exist\n";
+    write(new_file_descriptor, response1, strlen(response1));
+memset(buffer, 0, strlen(buffer));
+	return;
+
 		}
 
     char* temp = "200 directory changed to ";
@@ -88,9 +93,10 @@ void cwd(char* buffer){
     strcpy(response,temp);
     strcat(response,query);
     write(new_file_descriptor, response, strlen(response));
-	}
 	memset(buffer, 0, strlen(buffer));
 	return;
+	}
+
 }
 
 void cdup(char* buffer){
@@ -108,6 +114,7 @@ void cdup(char* buffer){
     else{
       if(chdir("../")!=0){
         perror("error while changing dir");
+
       }
       char* query="../\n";
       char* temp = "200 directory changed to ";
@@ -148,7 +155,7 @@ void type(char* buffer){
 	}
   else{
     char* response1="504 Command not implemented for that parameter.\n";
-    write(new_file_descriptor, response1, strlen(response));
+    write(new_file_descriptor, response1, strlen(response1));
     return;
   }
   char* response="200 Command okay.\n";
@@ -160,7 +167,7 @@ void mode(char* buffer){
   char* mode = substrings(buffer, 5, strlen(buffer));
   if(strcasecmp(mode, "S")!=0){
     char* response1="504 Command not implemented for that parameter.\n";
-    write(new_file_descriptor, response1, strlen(response));
+    write(new_file_descriptor, response1, strlen(response1));
     return;
   }
   else{
@@ -206,12 +213,18 @@ void client_parser(char* buffer){
       // else if (strncmp("PASV", buffer, 4) == 0) {
       //   pasv(buffer);
       // }
-      else if (strncmp("NLST", buffer, 4) == 0) {
+      else if ((strncmp("NLST", buffer, 4) == 0) || (strncmp("PWD", buffer, 3) == 0)) {
+printf("nlst/pwd\n");
         nlst(buffer);
       }
+else {
+printf("Others\n");
+        char* response="500\r\n";
+    write(new_file_descriptor, response, strlen(response));
+        }
     }
     else {
-      char* response="530 Not Logged in.\n";
+      char* response="530 Not Logged in.\r\n";
       write(new_file_descriptor, response, strlen(response));
       memset(buffer,0,strlen(buffer));
     }
@@ -277,12 +290,15 @@ int main(int arwgc, char **argv) {
         printf("parsing:%s\n",buffer);
         client_parser(buffer);
         memset(buffer, 0, strlen(buffer));
-        if(read(new_file_descriptor, buffer, 255) < 0){
+printf("before read\n");
+	int x = read(new_file_descriptor, buffer, 255);
+        if(x < 0){
           perror("error reading from socket");
           exit(EXIT_FAILURE);
         }
         else{
           printf("READ as:%s\n", buffer);
+	  
         }
 
       } while(connection == 0);
