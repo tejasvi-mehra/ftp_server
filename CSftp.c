@@ -49,7 +49,7 @@ void user1(char* buffer){
     }
     else{
       logged = 1;
-      char* response="230 User logged in, proceed.\n"; 
+      char* response="230 User logged in, proceed.\n";
       write(new_file_descriptor, response, strlen(response));
     }
   }
@@ -136,6 +136,40 @@ void retr(char* buffer){
   return;
 }
 
+void type(char* buffer){
+  char* type = substrings(buffer, 5, strlen(buffer));
+  printf("Type:%s",type);
+  if(!strcasecmp(type, "A")){
+    binary=0;
+  }
+  else if(!(strcasecmp(type, "I"))){
+    binary=1;
+    printf("the val of binary flag is %d\n", binary);
+	}
+  else{
+    char* response1="504 Command not implemented for that parameter.\n";
+    write(new_file_descriptor, response1, strlen(response));
+    return;
+  }
+  char* response="200 Command okay.\n";
+  write(new_file_descriptor, response, strlen(response));
+  return;
+}
+
+void mode(char* buffer){
+  char* mode = substrings(buffer, 5, strlen(buffer));
+  if(strcasecmp(mode, "S")!=0){
+    char* response1="504 Command not implemented for that parameter.\n";
+    write(new_file_descriptor, response1, strlen(response));
+    return;
+  }
+  else{
+    char* response="200 Command okay.\n";
+    write(new_file_descriptor, response, strlen(response));
+    return;
+  }
+}
+
 void client_parser(char* buffer){
   int i = 0;
   while(buffer[i] != '\0'){
@@ -157,12 +191,12 @@ void client_parser(char* buffer){
       else if (strncmp("CDUP", buffer, 4) == 0) {
         cdup(buffer);
       }
-      // else if (strncmp("TYPE", buffer, 4) == 0) {
-      //   type(buffer);
-      // }
-      // else if (strncmp("MODE", buffer, 4) == 0) {
-      //   mode(buffer);
-      // }
+      else if (strncmp("TYPE", buffer, 4) == 0) {
+        type(buffer);
+      }
+      else if (strncmp("MODE", buffer, 4) == 0) {
+        mode(buffer);
+      }
       // else if (strncmp("STRU", buffer, 4) == 0) {
       //   stru(buffer);
       // }
@@ -177,7 +211,8 @@ void client_parser(char* buffer){
       }
     }
     else {
-      write(new_file_descriptor, "530", 3);
+      char* response="530 Not Logged in.\n";
+      write(new_file_descriptor, response, strlen(response));
       memset(buffer,0,strlen(buffer));
     }
   }
