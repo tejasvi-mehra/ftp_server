@@ -14,7 +14,7 @@
 
 int logged = 0, connection = 0, binary = 0, portno, file_descriptor, new_file_descriptor, length_address, length_client, file_descriptor1, length_address1, new_file_descriptor1, portno1;
 struct sockaddr_in address_server, address_client, address_server1;
-char buffer[256], root_dir[1024];
+char buffer[256], root_dir[1024], buffer1[256];
 // Here is an example of how to use the above function. It also shows
 // one how to get the arguments passed on the command line.
 
@@ -70,21 +70,20 @@ char* substrings(char* str, int start, int end) {
 
 void user1(char* buffer){
   if(logged){
-    write(new_file_descriptor, "530", 3);
+		char* response = "503 Already logged in.\n";
+    write(new_file_descriptor, response, strlen(response));
   }
-  else{
-    char check[256];
-    memset(check, 0, strlen(check));
-    strcpy(check, "USER ");
-    strcat(check, "CS317");
-    if(strcasecmp("USER CS317", buffer) == 0){
-      write(new_file_descriptor, "530", 3);
-    }
-    else{
-      logged = 1;
-      char* response="230 User logged in, proceed.\n";
-      write(new_file_descriptor, response, strlen(response));
-    }
+  else {
+		if(strcasecmp("USER CS317\r\n", buffer) != 0){
+			char* response = "530 Not logged in.\n";
+			printf("Not logged\n");
+	    write(new_file_descriptor, response, strlen(response));
+  	}
+  	else{
+	    logged = 1;
+	    char* response="230 User logged in, proceed.\n";
+	    write(new_file_descriptor, response, strlen(response));
+  	}
   }
   memset(buffer, 0, strlen(buffer));
   return;
@@ -92,13 +91,17 @@ void user1(char* buffer){
 
 void nlst(char* buffer){
   // int size = strlen(buffer);
-  if (strlen(buffer) > 5) {
-		write(new_file_descriptor, "501", 3);
+	char* response = "150 File status okay; about to open data connection.\n";
+	write(new_file_descriptor, response, strlen(response));
+  if (strlen(buffer) > 6) {
+		char* response3 = "501 Syntax error in parameters or arguments.\n";
+		write(new_file_descriptor, response3, strlen(response3));
 	} else {
-    char* response="250 Requested file action okay, completed.\n";
-    write(new_file_descriptor, response, strlen(response));
-		printf("Printed %d directory entries\n", listFiles(new_file_descriptor, "."));
+		printf("Printed %d directory entries\n", listFiles(new_file_descriptor1, "."));
 	}
+	close(new_file_descriptor1);
+	char* response4 = "226 Closing data connection, file transfer successful\n";
+	write(new_file_descriptor, response4, strlen(response4));
   memset(buffer, 0, strlen(buffer));
   return;
 }
@@ -109,8 +112,9 @@ void cwd(char* buffer){
 //  strcat(query,"apple");
   printf("cwd, query:%s\n",query );
 
-  if (strncmp(substrings(query, 0, 2), "./", 2) == 1 || strstr(query, "../") != NULL) {
-		write(new_file_descriptor, "504", 3);
+  if (strncmp(substrings(query, 0, 2), "./", 2) == 1 || strstr(query, "..") != NULL) {
+		char* response2 = "504 Command not implemented for that parameter.\n";
+		write(new_file_descriptor, response2, strlen(response2));
 	}
   else {
 	int i=0;
@@ -147,7 +151,8 @@ void cdup(char* buffer){
       perror("getcwd() error");
     }
     if(!strncmp(root_dir, cwd, strlen(cwd))){
-      write(new_file_descriptor, "503\n", 4);
+			char* response1 = "503 Bad sequence of commands.\n";
+      write(new_file_descriptor, response1, strlen(response1));
     }
     else{
       if(chdir("../")!=0){
@@ -246,7 +251,7 @@ void pasv(){
 	address_server1.sin_port = 0;
 	address_server1.sin_addr.s_addr = INADDR_ANY;
 	length_address1 = sizeof(address_server1);
-	if(bind(file_descriptor1, (struct sockaddr *) &address_server1, length_address1) < 0){
+	if(bind(file_descriptor1, (struct sockaddr *) &address_server1, sizeof(address_server1)) < 0){
 		perror("Error in bind");
 		exit(EXIT_FAILURE);
 	}
@@ -270,8 +275,8 @@ void pasv(){
 	}
 	char p1[256];
 	char p2[256];
-	int port1 = address_server1.sin_port/256;
-	int port2 = address_server1.sin_port%256;
+	int port1 = portno2/256;
+	int port2 = portno2%256;
 	itoa(port1, p1, 10);
 	itoa(port2, p2, 10);
 	sprintf(response, "227 Entering Passive Mode (%d, %d, %d, %d, %d, %d)\n", ip[0], ip[1], ip[2], ip[3], port1, port2);
@@ -285,6 +290,8 @@ void pasv(){
 
 void client_parser(char* buffer){
   int i = 0;
+	memset(buffer1, 0, strlen(buffer1));
+	strcpy(buffer1, buffer);
   while(buffer[i] != '\0'){
     buffer[i] = toupper(buffer[i]);
     i++;
@@ -380,11 +387,8 @@ int main(int arwgc, char **argv) {
         perror("error while accepting");
         exit(EXIT_FAILURE);
       }
-      // Send 220
       char* response="220 Service ready for new user.\n";
       write(new_file_descriptor, response, strlen(response));
-      printf("220\n");
-      // Reset Buffer
       memset(buffer, 0, strlen(buffer));
       if (getcwd(root_dir, sizeof(root_dir)) == NULL) {
         perror("getcwd() error");
@@ -394,20 +398,14 @@ int main(int arwgc, char **argv) {
         exit(EXIT_FAILURE);
       }
       do{
-        printf("parsing:%s\n",buffer);
         client_parser(buffer);
+				printf("Buffer:%s\n",buffer );
         memset(buffer, 0, strlen(buffer));
-				printf("before read\n");
 				int x = read(new_file_descriptor, buffer, 255);
         if(x < 0){
           perror("error reading from socket");
           exit(EXIT_FAILURE);
         }
-        else{
-          printf("READ as:%s\n", buffer);
-
-        }
-
       } while(connection == 0);
       close(new_file_descriptor);
     }
