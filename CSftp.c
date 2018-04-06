@@ -68,7 +68,7 @@ char* substrings(char* str, int start, int end) {
 }
 
 
-void user1(char* buffer){
+void user(char* buffer){
   if(logged){
 		char* response = "503 Already logged in.\n";
     write(new_file_descriptor, response, strlen(response));
@@ -76,7 +76,6 @@ void user1(char* buffer){
   else {
 		if(strcasecmp("USER CS317\r\n", buffer) != 0){
 			char* response = "530 Not logged in.\n";
-			printf("Not logged\n");
 	    write(new_file_descriptor, response, strlen(response));
   	}
   	else{
@@ -108,16 +107,12 @@ void nlst(char* buffer){
 
 void cwd(char* buffer){
   char* query=substrings(buffer, 4, strlen(buffer)-1);
-	printf("Query before:%s\n", query);
 //  strcat(query,"apple");
-  printf("cwd, query:%s\n",query );
-
   if (strncmp(substrings(query, 0, 2), "./", 2) == 1 || strstr(query, "..") != NULL) {
 		char* response2 = "504 Command not implemented for that parameter.\n";
 		write(new_file_descriptor, response2, strlen(response2));
 	}
   else {
-	printf("Query1:%s\n",query);
 	if (chdir(query) != 0) {
 		perror("error while changing dir");
 	 	char* response1 = "550 Requested action not taken. Directory does not exist\n";
@@ -140,38 +135,35 @@ void cwd(char* buffer){
 
 void cdup(char* buffer){
   char cwd[1024];
-
-		printf("CDUP in progress\n");
-    if(getcwd(cwd, sizeof(cwd)) == NULL){
-      perror("getcwd() error");
+  if(getcwd(cwd, sizeof(cwd)) == NULL){
+    perror("getcwd() error");
+  }
+  if(!strncmp(root_dir, cwd, strlen(cwd))){
+		char* response1 = "503 Bad sequence of commands.\n";
+    write(new_file_descriptor, response1, strlen(response1));
+  }
+  else{
+    if(chdir("../")!=0){
+      perror("error while changing dir");
+			char* response2 = "550 Requested action not taken.\n";
+		  write(new_file_descriptor, response2, strlen(response2));
+			memset(buffer, 0, strlen(buffer));
+			return;
     }
-    if(!strncmp(root_dir, cwd, strlen(cwd))){
-			char* response1 = "503 Bad sequence of commands.\n";
-      write(new_file_descriptor, response1, strlen(response1));
-    }
-    else{
-      if(chdir("../")!=0){
-        perror("error while changing dir");
-
-      }
-			else{
-				printf("Changed back\n");
-			}
-      char* query="../\n";
-      char* temp = "200 directory changed to ";
-      // strcat(query,"\n");
-      int newSize = strlen(temp)+strlen(query)+1;
-      char* response = (char *)malloc(newSize);
-      strcpy(response,temp);
-      strcat(response,query);
-      write(new_file_descriptor, response, strlen(response));
-    }
-
+    char* query="../\n";
+    char* temp = "200 directory changed to ";
+    // strcat(query,"\n");
+    int newSize = strlen(temp)+strlen(query)+1;
+    char* response = (char *)malloc(newSize);
+    strcpy(response,temp);
+    strcat(response,query);
+    write(new_file_descriptor, response, strlen(response));
+  }
   memset(buffer, 0, strlen(buffer));
 	return;
 }
 
-void quit1(char* buffer){
+void quit(char* buffer){
   logged=0;
   connection=1;
   memset(buffer, 0, strlen(buffer));
@@ -183,7 +175,6 @@ void quit1(char* buffer){
 void retr(char* buffer){
   char f_buffer[4096];
 	char* filename = substrings(buffer, 5, strlen(buffer)-1);
-	printf("filename:%s\n",filename );
 	FILE *file;
 	size_t s;
 	if(!binary){
@@ -219,7 +210,6 @@ void retr(char* buffer){
 			return;
 	  }
 		else{
-			printf("File present\n");
 			char* response6 = "150 File status okay; about to open data connection.\n";
 			write(new_file_descriptor, response6, strlen(response6));
 			fseek(file, 0, SEEK_END);
@@ -245,7 +235,6 @@ void retr(char* buffer){
 
 void type(char* buffer){
   char* type = substrings(buffer, 5, strlen(buffer)-1);
-  printf("Type:%s",type);
   if(!strcasecmp(type, "A")){
     binary=0;
   }
@@ -357,19 +346,17 @@ void client_parser(char* buffer){
   }
 
   if (strncmp("USER", buffer, 4) == 0) {
-    user1(buffer);
+    user(buffer);
   }
 	else {
     if (logged) {
       if (strncmp("QUIT", buffer, 4) == 0) {
-        quit1(buffer);
+        quit(buffer);
       }
       else if ((strncmp("CWD", buffer, 3) == 0) || (strncmp("XCWD", buffer, 4) == 0)){
-        printf("HERE\n");
         cwd(buffer1);
       }
       else if (strncmp("CDUP", buffer, 4) == 0) {
-				printf("CDUP here\n" );
         cdup(buffer);
       }
       else if (strncmp("TYPE", buffer, 4) == 0) {
@@ -391,8 +378,7 @@ void client_parser(char* buffer){
         nlst(buffer);
       }
 			else {
-				printf("Others\n");
-	      char* response="500\r\n";
+	      char* response="500 Syntax error, command unrecognized.\r\n";
 	    	write(new_file_descriptor, response, strlen(response));
       }
     }
@@ -442,10 +428,15 @@ int main(int arwgc, char **argv) {
 
     while(1){
       // Get new connection
+			printf("waiting for connection\n");
       if((new_file_descriptor = accept(file_descriptor, (struct sockaddr*) &address_client, (socklen_t*) &length_client)) < 0){
         perror("error while accepting");
         exit(EXIT_FAILURE);
       }
+			else{
+				connection = 0;
+			}
+			printf("Connected\n");
       char* response="220 Service ready for new user.\n";
       write(new_file_descriptor, response, strlen(response));
       memset(buffer, 0, strlen(buffer));
@@ -458,7 +449,6 @@ int main(int arwgc, char **argv) {
       }
       do{
         client_parser(buffer);
-				printf("Buffer:%s\n",buffer );
         memset(buffer, 0, strlen(buffer));
 				int x = read(new_file_descriptor, buffer, 255);
         if(x < 0){
@@ -467,7 +457,7 @@ int main(int arwgc, char **argv) {
         }
       } while(connection == 0);
       close(new_file_descriptor);
+			printf("Closed new socket\n");
     }
-
-      return 0;
+    return 0;
   }
