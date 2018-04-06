@@ -8,12 +8,45 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 
-int logged = 0, connection = 0, binary = 0, portno, file_descriptor, new_file_descriptor, length_address, length_client;
-struct sockaddr_in address_server, address_client;
+
+int logged = 0, connection = 0, binary = 0, portno, file_descriptor, new_file_descriptor, length_address, length_client, file_descriptor1, length_address1, new_file_descriptor1, portno1;
+struct sockaddr_in address_server, address_client, address_server1;
 char buffer[256], root_dir[1024];
 // Here is an example of how to use the above function. It also shows
 // one how to get the arguments passed on the command line.
+
+void itoa(int value, char* str, int base){
+	static char num[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+	char* wstr=str;
+	int sign;
+
+	// Validate base
+	if (base<2 || base>35){ *wstr='\0'; return; }
+
+	// Take care of sign
+	if ((sign=value) < 0) value = -value;
+
+	// Conversion. Number is reversed.
+	do *wstr++ = num[value%base]; while(value/=base);
+
+	if(sign<0) *wstr++='-';
+
+	*wstr='\0';
+
+	// Reverse string
+	char* beg = str;
+	char* end = wstr-1;
+	char aux;
+
+	while(end>beg){
+		aux=*end, *end--=*beg, *beg++=aux;
+	}
+
+}
+
 char* substrings(char* str, int start, int end) {
 	char* val;
 	int i;
@@ -71,35 +104,35 @@ void nlst(char* buffer){
 }
 
 void cwd(char* buffer){
-  char* query=substrings(buffer, 4, strlen(buffer));
-  strcat(query,"/");
+  char* query=substrings(buffer, 4, strlen(buffer)-1);
+	printf("Query before:%s\n", query);
+//  strcat(query,"apple");
   printf("cwd, query:%s\n",query );
 
   if (strncmp(substrings(query, 0, 2), "./", 2) == 1 || strstr(query, "../") != NULL) {
 		write(new_file_descriptor, "504", 3);
 	}
   else {
-int i=0;
-while(query[i] != '\0'){
+	int i=0;
+	while(query[i] != '\0'){
     query[i] = tolower(query[i]);
     i++;
   }
-		if (chdir(query) != 0) {
-			perror("error while changing dir");
-   char* response1 = "550 Requested action not taken. Directory does not exist\n";
-    write(new_file_descriptor, response1, strlen(response1));
-memset(buffer, 0, strlen(buffer));
-	return;
-
-		}
-
-    char* temp = "200 directory changed to ";
-    strcat(query,"\n");
-    int newSize = strlen(temp)+strlen(query)+1;
-    char* response = (char *)malloc(newSize);
-    strcpy(response,temp);
-    strcat(response,query);
-    write(new_file_descriptor, response, strlen(response));
+	printf("Query1:%s\n",query);
+	if (chdir(query) != 0) {
+		perror("error while changing dir");
+	 	char* response1 = "550 Requested action not taken. Directory does not exist\n";
+	  write(new_file_descriptor, response1, strlen(response1));
+		memset(buffer, 0, strlen(buffer));
+		return;
+	}
+  char* temp = "200 directory changed to ";
+  strcat(query,"\n");
+  int newSize = strlen(temp)+strlen(query)+1;
+  char* response = (char *)malloc(newSize);
+  strcpy(response,temp);
+  strcat(response,query);
+  write(new_file_descriptor, response, strlen(response));
 	memset(buffer, 0, strlen(buffer));
 	return;
 	}
@@ -108,21 +141,22 @@ memset(buffer, 0, strlen(buffer));
 
 void cdup(char* buffer){
   char cwd[1024];
-  if(strlen(buffer)>5){
-    write(new_file_descriptor, "501", 3);
-  }
-  else{
+
+		printf("CDUP in progress\n");
     if(getcwd(cwd, sizeof(cwd)) == NULL){
       perror("getcwd() error");
     }
     if(!strncmp(root_dir, cwd, strlen(cwd))){
-      write(new_file_descriptor, "503", 3);
+      write(new_file_descriptor, "503\n", 4);
     }
     else{
       if(chdir("../")!=0){
         perror("error while changing dir");
 
       }
+			else{
+				printf("Changed back\n");
+			}
       char* query="../\n";
       char* temp = "200 directory changed to ";
       // strcat(query,"\n");
@@ -132,7 +166,7 @@ void cdup(char* buffer){
       strcat(response,query);
       write(new_file_descriptor, response, strlen(response));
     }
-  }
+
   memset(buffer, 0, strlen(buffer));
 	return;
 }
@@ -151,16 +185,15 @@ void retr(char* buffer){
 }
 
 void type(char* buffer){
-  char* type = substrings(buffer, 5, strlen(buffer));
+  char* type = substrings(buffer, 5, strlen(buffer)-1);
   printf("Type:%s",type);
   if(!strcasecmp(type, "A")){
     binary=0;
   }
   else if(!(strcasecmp(type, "I"))){
     binary=1;
-    printf("the val of binary flag is %d\n", binary);
 	}
-  else{
+  else {
     char* response1="504 Command not implemented for that parameter.\n";
     write(new_file_descriptor, response1, strlen(response1));
     return;
@@ -171,7 +204,7 @@ void type(char* buffer){
 }
 
 void mode(char* buffer){
-  char* mode = substrings(buffer, 5, strlen(buffer));
+  char* mode = substrings(buffer, 5, strlen(buffer)-1);
   if(strcasecmp(mode, "S")!=0){
     char* response1="504 Command not implemented for that parameter.\n";
     write(new_file_descriptor, response1, strlen(response1));
@@ -184,6 +217,72 @@ void mode(char* buffer){
   }
 }
 
+void stru(char* buffer){
+	char* stru = substrings(buffer, 5, strlen(buffer)-1);
+	if(strcasecmp(stru, "F") != 0){
+		char* response1="504 Command not implemented for that parameter.\n";
+    write(new_file_descriptor, response1, strlen(response1));
+    return;
+  }
+  else {
+    char* response="200 Command okay.\n";
+    write(new_file_descriptor, response, strlen(response));
+    return;
+  }
+}
+
+void pasv(){
+	char response[256], host[1024];
+	char* ip1;
+	struct hostent *h;
+	struct in_addr **list;
+	int ip[4];
+
+	if((file_descriptor1 = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+		perror("Error creating socket");
+		exit(EXIT_FAILURE);
+	}
+	address_server1.sin_family = AF_INET;
+	address_server1.sin_port = 0;
+	address_server1.sin_addr.s_addr = INADDR_ANY;
+	length_address1 = sizeof(address_server1);
+	if(bind(file_descriptor1, (struct sockaddr *) &address_server1, length_address1) < 0){
+		perror("Error in bind");
+		exit(EXIT_FAILURE);
+	}
+	if(getsockname(file_descriptor1, (struct sockaddr *) &address_server1, (socklen_t *) &length_address1) < 0){
+		perror("getsockname error");
+		exit(EXIT_FAILURE);
+	}
+	gethostname(host, sizeof(host));
+	if((h = gethostbyname(host)) == NULL){
+		herror("gethostbyname error");
+		return;
+	}
+	list = (struct in_addr **)h->h_addr_list;
+	ip1 = inet_ntoa(*list[0]);
+	sscanf(ip1, "%d.%d.%d.%d", &ip[0],&ip[1],&ip[2],&ip[3]);
+	int portno2 = ntohs(address_server1.sin_port);
+	printf("Port: %d\nIP: %s\n", portno2,ip1);
+	if(listen(file_descriptor1, 5) < 0) {
+		perror("Cannot Listen");
+		exit(EXIT_FAILURE);
+	}
+	char p1[256];
+	char p2[256];
+	int port1 = address_server1.sin_port/256;
+	int port2 = address_server1.sin_port%256;
+	itoa(port1, p1, 10);
+	itoa(port2, p2, 10);
+	sprintf(response, "227 Entering Passive Mode (%d, %d, %d, %d, %d, %d)\n", ip[0], ip[1], ip[2], ip[3], port1, port2);
+	write(new_file_descriptor, response, strlen(response));
+	if((new_file_descriptor1 = accept(file_descriptor1, (struct sockaddr *) &address_client, (socklen_t *) &length_client)) < 0){
+		perror("Error in accept");
+		exit(EXIT_FAILURE);
+	}
+	return;
+}
+
 void client_parser(char* buffer){
   int i = 0;
   while(buffer[i] != '\0'){
@@ -193,7 +292,8 @@ void client_parser(char* buffer){
 
   if (strncmp("USER", buffer, 4) == 0) {
     user1(buffer);
-  } else {
+  }
+	else {
     if (logged) {
       if (strncmp("QUIT", buffer, 4) == 0) {
         quit1(buffer);
@@ -203,6 +303,7 @@ void client_parser(char* buffer){
         cwd(buffer);
       }
       else if (strncmp("CDUP", buffer, 4) == 0) {
+				printf("CDUP here\n" );
         cdup(buffer);
       }
       else if (strncmp("TYPE", buffer, 4) == 0) {
@@ -211,24 +312,23 @@ void client_parser(char* buffer){
       else if (strncmp("MODE", buffer, 4) == 0) {
         mode(buffer);
       }
-      // else if (strncmp("STRU", buffer, 4) == 0) {
-      //   stru(buffer);
-      // }
-      // else if (strncmp("RETR", buffer, 4) == 0) {
-      //   retr(buffer);
-      // }
-      // else if (strncmp("PASV", buffer, 4) == 0) {
-      //   pasv(buffer);
-      // }
-      else if ((strncmp("NLST", buffer, 4) == 0) || (strncmp("PWD", buffer, 3) == 0)) {
-
+      else if (strncmp("STRU", buffer, 4) == 0) {
+        stru(buffer);
+      }
+      else if (strncmp("RETR", buffer, 4) == 0) {
+        retr(buffer);
+      }
+      else if (strncmp("PASV", buffer, 4) == 0) {
+        pasv();
+      }
+			else if ((strncmp("NLST", buffer, 4) == 0)) {
         nlst(buffer);
       }
-else {
-printf("Others\n");
-        char* response="500\r\n";
-    write(new_file_descriptor, response, strlen(response));
-        }
+			else {
+				printf("Others\n");
+	      char* response="500\r\n";
+	    	write(new_file_descriptor, response, strlen(response));
+      }
     }
     else {
       char* response="530 Not Logged in.\r\n";
@@ -297,15 +397,15 @@ int main(int arwgc, char **argv) {
         printf("parsing:%s\n",buffer);
         client_parser(buffer);
         memset(buffer, 0, strlen(buffer));
-printf("before read\n");
-	int x = read(new_file_descriptor, buffer, 255);
+				printf("before read\n");
+				int x = read(new_file_descriptor, buffer, 255);
         if(x < 0){
           perror("error reading from socket");
           exit(EXIT_FAILURE);
         }
         else{
           printf("READ as:%s\n", buffer);
-	  
+
         }
 
       } while(connection == 0);
