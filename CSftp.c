@@ -117,11 +117,6 @@ void cwd(char* buffer){
 		write(new_file_descriptor, response2, strlen(response2));
 	}
   else {
-	int i=0;
-	while(query[i] != '\0'){
-    query[i] = tolower(query[i]);
-    i++;
-  }
 	printf("Query1:%s\n",query);
 	if (chdir(query) != 0) {
 		perror("error while changing dir");
@@ -186,7 +181,35 @@ void quit1(char* buffer){
 }
 
 void retr(char* buffer){
-  return;
+  char f_buffer[4096];
+	char* filename = substrings(buffer, 5, strlen(buffer)-1);
+	printf("filename:%s\n",filename );
+	if(!binary){
+		FILE *file;
+		size_t s;
+		if(!(file = fopen(filename, "r"))){
+			char* response = "550 Requested action not taken. File unavailable\n";
+			write(new_file_descriptor, response, strlen(response));
+			perror("File not found");
+			return;
+		}
+		char* response1 = "150 File status okay; about to open data connection.\n";
+		write(new_file_descriptor, response1, strlen(response1));
+		while((s=fread(f_buffer, 1, sizeof(f_buffer), file)) > 0){
+			fwrite(f_buffer, 1, s, stdout);
+		}
+		if(ferror(file)){
+			char* response2 = "500 Syntax error, command unrecognized.\n";
+			write(new_file_descriptor, response2, strlen(response2));
+		}
+		write(new_file_descriptor1, f_buffer, strlen(f_buffer));
+		fclose(file);
+		close(new_file_descriptor1);
+		char* response4 = "226 Closing data connection, file transfer successful\n";
+		write(new_file_descriptor, response4, strlen(response4));
+	}
+	memset(buffer, 0, strlen(buffer));
+	return;
 }
 
 void type(char* buffer){
@@ -307,7 +330,7 @@ void client_parser(char* buffer){
       }
       else if ((strncmp("CWD", buffer, 3) == 0) || (strncmp("XCWD", buffer, 4) == 0)){
         printf("HERE\n");
-        cwd(buffer);
+        cwd(buffer1);
       }
       else if (strncmp("CDUP", buffer, 4) == 0) {
 				printf("CDUP here\n" );
@@ -323,7 +346,7 @@ void client_parser(char* buffer){
         stru(buffer);
       }
       else if (strncmp("RETR", buffer, 4) == 0) {
-        retr(buffer);
+        retr(buffer1);
       }
       else if (strncmp("PASV", buffer, 4) == 0) {
         pasv();
