@@ -184,9 +184,9 @@ void retr(char* buffer){
   char f_buffer[4096];
 	char* filename = substrings(buffer, 5, strlen(buffer)-1);
 	printf("filename:%s\n",filename );
+	FILE *file;
+	size_t s;
 	if(!binary){
-		FILE *file;
-		size_t s;
 		if(!(file = fopen(filename, "r"))){
 			char* response = "550 Requested action not taken. File unavailable\n";
 			write(new_file_descriptor, response, strlen(response));
@@ -207,6 +207,37 @@ void retr(char* buffer){
 		close(new_file_descriptor1);
 		char* response4 = "226 Closing data connection, file transfer successful\n";
 		write(new_file_descriptor, response4, strlen(response4));
+	}
+	else{
+		int c;
+		file = fopen(filename,"rb");
+  	if(file==NULL)
+	  {
+			char* response5 = "550 Requested action not taken. File unavailable\n";
+			write(new_file_descriptor, response5, strlen(response5));
+			perror("File not found");
+			return;
+	  }
+		else{
+			printf("File present\n");
+			char* response6 = "150 File status okay; about to open data connection.\n";
+			write(new_file_descriptor, response6, strlen(response6));
+			fseek(file, 0, SEEK_END);
+			long filelen = ftell(file);
+			char* ret = malloc(filelen);
+			fseek(file, 0, SEEK_SET);
+			fread(ret, 1, filelen, file);
+			if(ferror(file)){
+				char* response2 = "500 Syntax error, command unrecognized.\n";
+				write(new_file_descriptor, response2, strlen(response2));
+			}
+			fclose(file);
+			write(new_file_descriptor1, ret, filelen);
+			close(new_file_descriptor1);
+			char* response8 = "226 Closing data connection, file transfer successful\n";
+			write(new_file_descriptor, response8, strlen(response8));
+		}
+
 	}
 	memset(buffer, 0, strlen(buffer));
 	return;
@@ -233,15 +264,20 @@ void type(char* buffer){
 
 void mode(char* buffer){
   char* mode = substrings(buffer, 5, strlen(buffer)-1);
-  if(strcasecmp(mode, "S")!=0){
+  if((strcasecmp(mode, "B")==0) || (strcasecmp(mode, "C")==0)){
     char* response1="504 Command not implemented for that parameter.\n";
     write(new_file_descriptor, response1, strlen(response1));
     return;
   }
+	else if (strcasecmp(mode, "S")==0){
+		char* response="200 Command okay.\n";
+		write(new_file_descriptor, response, strlen(response));
+		return;
+	}
   else{
-    char* response="200 Command okay.\n";
-    write(new_file_descriptor, response, strlen(response));
-    return;
+		char* response2=" 501 Syntax error in parameters or arguments.\n";
+		write(new_file_descriptor, response2, strlen(response2));
+		return;
   }
 }
 
